@@ -40,9 +40,24 @@ sudo apt install ffmpeg
    python download_video.py
    ```
 
-3. Enter the YouTube video URL when prompted:
+3. Select the method when prompted:
+   ```
+   Methods Available:-
+     1) Auto Detect
+     2) Download Youtube Video
+     3) Download Youtube Music
+     4) Advanced Options
+
+   Your Choice:
+   ```
+
+3. Enter the YouTube video/music URL when prompted:
    ```
    Enter the YouTube video URL: https://www.youtube.com/watch?v=your-video-id
+   ```
+   OR
+   ```
+   Enter the Youtube Music URL: https://music.youtube.com/watch?v=your-video-id
    ```
 
 4. The script will download the best available video and audio streams, merge them, and save the file in the current directory.
