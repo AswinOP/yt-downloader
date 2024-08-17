@@ -22,10 +22,10 @@ def download_youtube_music_playlist(playlist_url):
         ydl_opts = {'no_warnings':True,'quiet':True}
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(playlist_url, download=False)
+            playlist_title = info['title']
             video_titles = [video['title'] for video in info['entries']]
             video_urls = [video['id'] for video in info['entries']]
 
-        playlist_title = video_titles[0]
         print("\nAvailable Music to download: ", len(video_titles))
 
         print("\nSelect songs to download:")
@@ -39,11 +39,9 @@ def download_youtube_music_playlist(playlist_url):
         else:
             selected_videos=[int(x)-1 for x in selected_videos.split()]
 
-        # Create directory for playlist
         playlist_dir = playlist_title
         os.makedirs(playlist_dir, exist_ok=True)
 
-        # Download selected videos
         ydl_opts = {
             'outtmpl':os.path.join(playlist_dir,'%(title)s.%(ext)s'),
             'format':'bestaudio/best',
@@ -52,43 +50,37 @@ def download_youtube_music_playlist(playlist_url):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([video_urls[i] for i in selected_videos])
 
-        print("\n\nDownload complete! files saved in the directory`", playlist_title,"`")
+        print("\n\nDownload complete! files saved in the directory `", playlist_title,"`")
 
     except Exception as e:
         print(f"An error occurred: {e}")
 
 def download_youtube_video_playlist(playlist_url):
-    # Use yt-dlp to get video titles and URLs
     try:
         print("\nSearching for Youtube Videos...\nPlease be patient")
         ydl_opts = {'no_warnings':True,'quiet':True}
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(playlist_url, download=False)
+            playlist_title = info['title']
             video_titles = [video['title'] for video in info['entries']]
             video_urls = [video['id'] for video in info['entries']]
 
-        # Get playlist title from the first video title
-        playlist_title = video_titles[0]
         print("\nAvailable Videos to download: ", len(video_titles))
 
-        #Display video titles and URL's to the user
         print("\nSelect videos to download:")
         for i,(title,url) in enumerate(zip(video_titles,video_urls)):
             print(f"{i+1}.{title}({url})")
 
         selected_videos = input("\nEnter video numbers (space-separated), or 'all' to download all: ")
 
-        #process user input
         if selected_videos.lower()=="all":
             selected_videos=list(range(len(video_titles)))
         else:
             selected_videos=[int(x)-1 for x in selected_videos.split()]
 
-        # Create directory for playlist
         playlist_dir = playlist_title
         os.makedirs(playlist_dir, exist_ok=True)
 
-        # Download selected videos
         ydl_opts = {
             'outtmpl':os.path.join(playlist_dir,'%(title)s.%(ext)s'),
             'format':'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]',
@@ -97,7 +89,7 @@ def download_youtube_video_playlist(playlist_url):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([video_urls[i] for i in selected_videos])
 
-        print("\n\nDownload completed! files saved in the directory`", playlist_title,"`")
+        print("\n\nDownload completed! files saved in the directory `", playlist_title,"`")
 
     except Exception as e:
         print(f"An error occurred: {e}")
