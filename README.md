@@ -51,7 +51,7 @@ sudo apt install ffmpeg
    Your Choice:
    ```
 
-3. Enter the YouTube video/music URL when prompted:
+4. Enter the YouTube video/music URL when prompted:
    ```
    Enter the YouTube video URL: https://www.youtube.com/watch?v=your-video-id
    ```
@@ -60,7 +60,7 @@ sudo apt install ffmpeg
    Enter the Youtube Music URL: https://music.youtube.com/watch?v=your-video-id
    ```
 
-4. The script will download the best available video and audio streams, merge them, and save the file in the current directory.
+5. The script will download the best available video and audio streams, merge them, and save the file in the current directory.
 
 ## Example Output
 

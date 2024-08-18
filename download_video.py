@@ -1,6 +1,8 @@
 import os
 import subprocess
 import sys
+import threading
+import threading_downloading
 from converter import choose_and_convert
 
 def install_package(package):
@@ -19,13 +21,13 @@ def thanks():
 def download_youtube_music_playlist(playlist_url):
     try:
         print("\nSearching for Youtube Music...\nPlease be patient")
-        ydl_opts = {'no_warnings': True, 'quiet': True}
+        ydl_opts ={'quiet':True,'force-generic-extractor':True,'extract_flat':True}
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(playlist_url, download=False)
             playlist_title = info['title']
             video_titles = [video['title'] for video in info['entries']]
-            video_urls = [video['id'] for video in info['entries']]
+            video_urls = [video['url'] for video in info['entries']]
 
         print("\nAvailable Music to download: ", len(video_titles))
 
@@ -43,14 +45,16 @@ def download_youtube_music_playlist(playlist_url):
         playlist_dir = playlist_title
         os.makedirs(playlist_dir, exist_ok=True)
 
-        ydl_opts = {
-            'outtmpl': os.path.join(playlist_dir, '%(title)s.%(ext)s'),
-            'format': 'bestaudio/best',
-            'merge_output_format': 'mp3'
-        }
-        
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([video_urls[i] for i in selected_videos])
+        threads = []
+        for i in selected_videos:
+            url = video_urls[i]
+            print("Downloading Music - ", url)
+            thread = threading.Thread(target=threading_downloading.download_youtube_music_multi,args=(url,playlist_dir,))
+            threads.append(thread)
+            thread.start()
+
+        for thread in threads:
+            thread.join()
 
         print("\n\nDownload complete! Files saved in the directory `", playlist_title, "`")
 
@@ -60,16 +64,14 @@ def download_youtube_music_playlist(playlist_url):
 def download_youtube_video_playlist(playlist_url):
     try:
         print("\nSearching for Youtube Videos...\nPlease be patient")
-        ydl_opts = {'no_warnings': True, 'quiet': True}
-        
+        ydl_opts ={'quiet':True,'force-generic-extractor':True,'extract_flat':True}
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(playlist_url, download=False)
+            info = ydl.extract_info(playlist_url,download=False)
             playlist_title = info['title']
+            video_urls=[entry['url'] for entry in info['entries']]
             video_titles = [video['title'] for video in info['entries']]
-            video_urls = [video['id'] for video in info['entries']]
 
         print("\nAvailable Videos to download: ", len(video_titles))
-
         print("\nSelect videos to download:")
         for i, (title, url) in enumerate(zip(video_titles, video_urls)):
             print(f"{i+1}. {title} ({url})")
@@ -84,14 +86,16 @@ def download_youtube_video_playlist(playlist_url):
         playlist_dir = playlist_title
         os.makedirs(playlist_dir, exist_ok=True)
 
-        ydl_opts = {
-            'outtmpl': os.path.join(playlist_dir, '%(title)s.%(ext)s'),
-            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]',
-            'merge_output_format': 'mp4'
-        }
-        
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([video_urls[i] for i in selected_videos])
+        threads = []
+        for i in selected_videos:
+            url = video_urls[i]
+            print("Downloading Video - ", url)
+            thread = threading.Thread(target=threading_downloading.download_youtube_video_multi,args=(url,playlist_dir,))
+            threads.append(thread)
+            thread.start()
+
+        for thread in threads:
+            thread.join()
 
         print("\n\nDownload completed! Files saved in the directory `", playlist_title, "`")
 
