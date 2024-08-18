@@ -28,10 +28,13 @@ def choose_and_convert():
             print(f"{idx}. {file}")
         
         try:
-            choice = int(input("Enter the number of the file you want to convert: ")) - 1
-            if 0 <= choice < len(mp4_files):
-                convert_specific_mp4_to_mp3(mp4_files[choice])
-            else:
-                print("Invalid choice. Please run the script again.")
+            choices = input("Enter the numbers of the files you want to convert (space-separated): ")
+            selected_indices = [int(x) - 1 for x in choices.split()]
+
+            for index in selected_indices:
+                if 0 <= index < len(mp4_files):
+                    convert_specific_mp4_to_mp3(mp4_files[index])
+                else:
+                    print(f"Invalid choice: {index + 1}. Skipping.")
         except ValueError:
-            print("Please enter a valid number.")
+            print("Please enter valid numbers.")
