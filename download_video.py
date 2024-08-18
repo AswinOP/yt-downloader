@@ -2,6 +2,7 @@ import os
 import shutil
 import subprocess
 import sys
+from converter import choose_and_convert
 
 def install_package(package):
     subprocess.check_call([sys.executable, "-m", "pip", "install", package])
@@ -155,7 +156,12 @@ def download_youtube_video(url):
         print(f"An error occurred: {e}")
 
 def advanced_features():
-    print("\nAdvanced Option Menu:-\n     1) Download Youtube Video as Music\n     2) Download Youtube Videos Playlist\n     3) Download Youtube Music Playlist\n")
+    print("\nAdvanced Option Menu:-")
+    print("     1) Download Youtube Video as Music")
+    print("     2) Download Youtube Videos Playlist")
+    print("     3) Download Youtube Music Playlist")
+    print("     4) Extract Music (.mp3) from Videos (.mp4)")
+    print("\n     99) Go Back")
     userChoice = input("Your Choice: ")
     if(userChoice == "1"):
         music_url = input("Enter the Youtube Video URL to be converted to music: ")
@@ -166,9 +172,17 @@ def advanced_features():
     elif(userChoice == "3"):
         music_playlist_url = input("Enter the Youtube Music playlist URL: ")
         download_youtube_music_playlist(music_playlist_url)
+    elif(userChoice == '4'):
+        choose_and_convert()
+    elif(userChoice == "99"):
+        main_methods()
 
-if __name__ == "__main__":
-    print("Methods Available:-\n     1) Auto Detect\n     2) Download Youtube Video\n     3) Download Youtube Music\n     4) Advanced Options")
+def main_methods():
+    print("Methods Available:-")
+    print("     1) Auto Detect")
+    print("     2) Download Youtube Video")
+    print("     3) Download Youtube Music")
+    print("     4) Advanced Options")
     userChoice = input("Your Choice: ")
     if(userChoice=="2"):
         video_url = input("Enter the YouTube video URL: ")
@@ -182,4 +196,6 @@ if __name__ == "__main__":
     elif(userChoice=="4"):
         advanced_features()
 
+if __name__ == "__main__":
+    main_methods()
     thanks()
