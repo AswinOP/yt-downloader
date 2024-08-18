@@ -7,15 +7,17 @@ def convert_specific_mp4_to_mp3(filename):
         command = ['ffmpeg', '-i', filename, '-q:a', '0', '-map', 'a', mp3_file]
         subprocess.run(command, check=True)
         print(f"Converted {filename} to {mp3_file}")
-
-    
     else:
         print(f"File {filename} is not an .mp4 file.")
 
-def list_mp4_files():
-    mp4_files = [file for file in os.listdir('.') if file.endswith('.mp4')]
+def list_mp4_files(directory='.'):
+    mp4_files = []
+    for root, _, files in os.walk(directory):
+        for file in files:
+            if file.endswith('.mp4'):
+                mp4_files.append(os.path.join(root, file))
     if not mp4_files:
-        print("No .mp4 files found in the current directory.")
+        print("No .mp4 files found.")
     return mp4_files
 
 def choose_and_convert():
