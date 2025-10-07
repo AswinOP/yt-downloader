@@ -288,16 +288,14 @@ def main():
                 console.print("\n[red]Operation cancelled by user.[/red]")
                 sys.exit(0)
         url = urls[0]
-        use_video = not guess_is_music(url)
-        pick_audio = False
-        fmt = "mp3"
-        if use_video:
-            pick_audio = Confirm.ask("Download as audio (mp3/m4a/flac)?", default=False)
-            if pick_audio:
-                fmt = pick_audio_format()
-        else:
+        choice = Prompt.ask("Download as", choices=["video", "audio"], default="video")
+        if choice == "audio":
             fmt = pick_audio_format()
-        mode = "audio" if guess_is_music(url) or pick_audio else "video"
+            mode = "audio"
+        else:
+            mode = "video"
+            fmt = "mp4"
+
         folder = Prompt.ask("Output folder", default=last_output_folder)
         if not os.path.exists(folder):
             os.makedirs(folder)
