@@ -1,30 +1,36 @@
-
 # YouTube & YouTube Music CLI Downloader
 
-A modern, all-in-one Python tool to download **audio (MP3, FLAC, M4A)** and **video (MP4)** from YouTube and YouTube Music—**with album art**, smart file/folder naming, playlist support, lyrics saving, batch mode, and automatic metadata tagging.
+A clean, deliberate Python tool to download **audio (MP3, FLAC, M4A)** and **video (MP4)** from YouTube and YouTube Music — with cover art, metadata tagging, playlist support, and smart file organisation.
 
 ## Features
 
-- Download individual videos/music or full playlists
-- Extract audio as MP3, FLAC, or M4A (your choice)
-- Save videos as MP4 (best available quality)
-- **Embed YouTube cover art as album art for audio files**
-- Write artist, album, title, year, genre, and track numbers into tags
-- Save lyrics/video descriptions as text files alongside your music
-- Batch/playlist downloading, clean UX, automatic retries
+- Download individual videos or full playlists
+- Audio: MP3, FLAC, or M4A with embedded cover art and ID3/Vorbis/MP4 tags
+- Video: MP4 up to 8K, with selectable maximum resolution
+- Queue preview before download — see title and duration for each item
+- Parallel playlist downloads (audio)
+- Automatic retry of failed downloads at end of session
+- Clipboard URL detection
+- Batch mode — download multiple URLs from a text file
+- Download history tracked in config
+- Clean Rich-based terminal UI; raw yt-dlp output suppressed
+- Errors logged to `yt_downloader.log` for debugging
 - Works on Windows, macOS, Linux
 
 ## Installation
 
-### 1. Install Python 3.8+
-[Download Python](https://www.python.org/downloads/) if you don't have it.
+### 1. Install Python 3.10+
+
+[Download Python](https://www.python.org/downloads/)
 
 ### 2. Install ffmpeg
 
 **Windows:**
-- Download [ffmpeg build](https://www.gyan.dev/ffmpeg/builds/)
-- Unzip and add `bin` folder to PATH
-- Verify: `ffmpeg -version`
+```bash
+# Download from https://www.gyan.dev/ffmpeg/builds/
+# Unzip and add the bin/ folder to PATH
+ffmpeg -version  # verify
+```
 
 **macOS:**
 ```bash
@@ -36,7 +42,7 @@ brew install ffmpeg
 sudo apt update && sudo apt install ffmpeg
 ```
 
-### 3. Get the Script & Install Dependencies
+### 3. Install the script and dependencies
 
 ```bash
 git clone https://github.com/aswinop/yt-downloader.git
@@ -44,150 +50,95 @@ cd yt-downloader
 pip install -r requirements.txt
 ```
 
-### Dependencies:
-- `rich` – Beautiful CLI interface
-- `yt-dlp` – YouTube download backend
-- `pyperclip` – Clipboard detection
-- `requests` – HTTP requests
-- `pillow` – Image processing
-- `mutagen` – Audio metadata editing
-
 ## Usage
 
 ```bash
 python downloader.py
 ```
 
-### Step-by-Step:
+### Step-by-step
 
-1. **URL Input**
-   - Automatically detects YouTube links in clipboard
-   - Or paste URL manually
-   - Or load multiple URLs from text file
+1. **URL input** — paste a URL, or let the tool detect one from your clipboard. Type `file` to load a list of URLs from a text file.
+2. **Download type** — choose `audio` or `video`.
+3. **Format / resolution** — audio: MP3, M4A, or FLAC. Video: pick a maximum resolution (best, 8K, 4K, 2K, 1080p, down to 360p).
+4. **Output folder** — defaults to your last-used folder.
+5. **Playlist handling** — for playlist URLs, a track list with durations is shown. Select specific tracks (e.g. `1-3,5`) or press Enter for all.
+6. **Queue preview** — for single URLs, title and duration are shown before download begins.
+7. **Download** — progress bar with speed and ETA. Playlist audio downloads run in parallel.
+8. **Retry** — any failures are offered for retry at the end of the session.
+9. **Summary** — a table shows each file, its type, status, and size.
 
-2. **Format Selection**
-   - Audio: MP3, FLAC, or M4A
-   - Video: MP4 (best quality)
-
-3. **Output Folder**
-   - Choose download location
-   - Default: `Downloads/` folder
-
-4. **Playlist Support**
-   - View all playlist entries
-   - Select specific tracks (e.g., `1-3,5,7`)
-
-5. **Download & Processing**
-   - Progress bars with ETA
-   - Automatic retries on failure
-   - Metadata embedding
-   - Cover art extraction
-
-6. **Completion**
-   - Summary table of all downloads
-   - Option to open download folder
-   - Batch mode for multiple downloads
-
-## Sample Session
-
-```
-🎵 YouTube & YouTube Music Downloader 🎬
-═══════════════════════════════════════════════════════════════════════════════
-🎯 Smart organization    📁 Playlist support    🎨 Cover art embedding    
-🏷️ Metadata tagging      📝 Lyrics saving       🔄 Batch processing       
-
-🔗 Enter YouTube URL
-• Paste a YouTube/YouTube Music URL
-• Type 'file' to load from text file
-• Type 'q' to quit
-
-URL (): https://youtu.be/abc123def456
-
-📥 Download Type
-🎵 audio - Music (MP3, FLAC, M4A) with metadata & cover art
-🎬 video - Video (MP4) with subtitles
-
-Choose type [video/audio] (video): video
-
-📁 Output Folder
-Files will be saved in: Downloads
-Change folder (Downloads): MyVideos
-
-🎯 Ready to download: https://youtu.be/abc123def456
-
-🚀 Start download? [y/n] (y): y
-
-⠴ 🎬 Downloading 1/1 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100% 0:00:45
-[download] Destination: MyVideos/Example Channel/Sample Video Title.f401.mp4
-[download] Destination: MyVideos/Example Channel/Sample Video Title.f140.m4a
-[Merger] Merging formats into "MyVideos/Example Channel/Sample Video Title.mp4"
-
-🎉 Download Summary
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ File: MyVideos/Example Channel/Sample Video Title.mp4                       │                     
-│ Type: Video                    Status: ✅ Success          Size: 124.5 MB  │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-✅ Successfully downloaded 1 file(s)
-📊 Total size: 124.5 MB
-
-🔄 Download another batch? [y/n] (n): n
-📂 Open download folder? [y/n] (y): y
-
-🎊 All done! Happy watching! 🎬
-```
-
-## Output Structure
+## Output structure
 
 ```
 Downloads/
 ├── Channel Name/
-│   ├── Video Title.mp4
-│   └── Video Title.txt (description)
+│   └── Video Title.mp4
 └── Artist Name/
-    └── Album Name/
+    └── Album or Playlist Name/
         ├── 01 - Song Title.flac
-        ├── 01 - Song Title.txt (lyrics)
-        ├── 02 - Song Title.flac
-        └── 02 - Song Title.txt (lyrics)
+        ├── 01 - Song Title.txt
+        └── 02 - Song Title.flac
 ```
 
-## Features Details
+Audio files are organised by uploader → album/playlist. Text files alongside audio contain the video description.
 
-**Audio Files:**
-- Embedded cover art from YouTube thumbnails
-- ID3 tags (MP3) or Vorbis comments (FLAC)
-- Track numbering for playlists
-- Lyrics/descriptions saved as text files
+## Audio metadata
 
-**Video Files:**
-- Best available MP4 quality
-- Embedded subtitles (English)
-- SponsorBlock segments removed
-- Clean filenames
+Tags written per format:
 
-**Playlists:**
-- Selective track downloading
-- Maintains playback order
-- Album metadata from playlist
+| Tag         | MP3 (ID3) | FLAC (Vorbis) | M4A (MP4) |
+|-------------|-----------|---------------|-----------|
+| Title       | ✓         | ✓             | ✓         |
+| Artist      | ✓         | ✓             | ✓         |
+| Album       | ✓         | ✓             | ✓         |
+| Year        | ✓         | ✓             | ✓         |
+| Genre       | ✓         | ✓             | ✓         |
+| Track №     | ✓         | ✓             | ✓         |
+| Track total | ✓         | ✓             | ✓         |
+| Cover art   | ✓         | ✓             | ✓         |
+
+## Config
+
+Settings are stored in `yt_downloader_config.json` in the working directory:
+
+```json
+{
+  "last_output_folder": "Downloads",
+  "download_history": []
+}
+```
+
+Delete this file to reset all settings.
 
 ## Troubleshooting
 
-**No album art?**
-- YouTube may not provide high-quality thumbnails for some content
+**ffmpeg not found**
+Ensure ffmpeg is on your PATH: `ffmpeg -version`
 
-**ffmpeg not found?**
-- Ensure ffmpeg is in your PATH: `ffmpeg -version`
+**No cover art**
+YouTube may not provide thumbnails for some content. The tool tries the highest-resolution thumbnail available and falls back gracefully.
 
-**Installation issues?**
-- Try: `pip install --upgrade pip`
-- Use virtual environment for clean installation
+**Download failures**
+Check `yt_downloader.log` for details. Common causes: region restrictions, network issues, or a stale yt-dlp version.
 
-**Download failures?**
-- Check internet connection
-- Verify YouTube URL is accessible
-- Some content may be region-restricted
+**yt-dlp out of date**
+The tool checks for updates on startup and offers to install them automatically.
+
+**Python version**
+Python 3.10 or later is required (uses structural pattern features and modern type hints).
+
+## Dependencies
+
+| Package     | Purpose                        |
+|-------------|--------------------------------|
+| yt-dlp      | YouTube download backend       |
+| rich        | Terminal UI                    |
+| requests    | Thumbnail fetching, update check |
+| mutagen     | Audio tag writing              |
+| pillow      | Image handling                 |
+| pyperclip   | Clipboard detection            |
 
 ## License
 
-MIT License - see LICENSE file for details.
+MIT License — see LICENSE file for details.
