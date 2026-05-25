@@ -7,7 +7,8 @@ import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field, asdict
-from typing import Optional
+from pathlib import Path
+from typing import Optional, List, Dict, Tuple, Set
 
 import requests
 import pyperclip
@@ -19,9 +20,10 @@ from mutagen.mp4 import MP4, MP4Cover
 from rich.console import Console
 from rich.progress import (
     Progress, BarColumn, TextColumn,
-    TimeElapsedColumn, TimeRemainingColumn,
-    SpinnerColumn, TransferSpeedColumn, FileSizeColumn
+    TimeRemainingColumn, SpinnerColumn, 
+    TransferSpeedColumn, FileSizeColumn
 )
+from rich.live import Live
 from rich.prompt import Prompt, Confirm
 from rich.table import Table
 from rich.panel import Panel
@@ -34,17 +36,15 @@ AUDIO_FORMATS = ["mp3", "m4a", "flac"]
 VIDEO_RESOLUTIONS = ["best", "4320", "2160", "1440", "1080", "720", "480", "360"]
 RESOLUTION_LABELS = {
     "best": "Best available",
-    "4320": "4320p — 8K",
-    "2160": "2160p — 4K",
-    "1440": "1440p — 2K",
-    "1080": "1080p — Full HD",
-    "720":  "720p  — HD",
-    "480":  "480p  — SD",
-    "360":  "360p  — Low",
+    "4320": "4320p - 8K",
+    "2160": "2160p - 4K",
+    "1440": "1440p - 2K",
+    "1080": "1080p - Full HD",
+    "720":  "720p  - HD",
+    "480":  "480p  - SD",
+    "360":  "360p  - Low",
 }
-YT_URL_PATTERN = re.compile(
-    r'https?://(www\.)?(youtube\.com|youtu\.be|music\.youtube\.com)/'
-)
+YT_URL_PATTERN = re.compile(r'https?://(www\.)?(youtube\.com|youtu\.be|music\.youtube\.com)/')
 UNSAFE_CHARS = re.compile(r'[\/\\\:\*\?"<>\|]')
 
 logging.basicConfig(
@@ -54,16 +54,27 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
+class SilentYTDLPLogger:
+    def debug(self, msg):
+        pass
+    def info(self, msg):
+        pass
+    def warning(self, msg):
+        pass
+    def error(self, msg):
+        pass
+
 @dataclass
 class Config:
     last_output_folder: str = DEFAULT_FOLDER
-    download_history: list = field(default_factory=list)
+    download_history: List[str] = field(default_factory=list)
 
     @staticmethod
     def load() -> "Config":
-        if os.path.exists(CONFIG_FILE):
+        config_path = Path(CONFIG_FILE)
+        if config_path.exists():
             try:
-                with open(CONFIG_FILE, encoding="utf-8") as f:
+                with open(config_path, encoding="utf-8") as f:
                     data = json.load(f)
                 return Config(**{k: v for k, v in data.items() if k in Config.__dataclass_fields__})
             except Exception as exc:
@@ -98,7 +109,7 @@ class DownloadResult:
 
     @property
     def size_str(self) -> str:
-        return _human_size(self.size_bytes) if self.size_bytes else "—"
+        return _human_size(self.size_bytes) if self.size_bytes else "-"
 
 
 def _human_size(num: int) -> str:
@@ -118,11 +129,6 @@ def is_youtube_url(text: str) -> bool:
 
 
 def is_playlist_url(url: str) -> bool:
-    """
-    True only for genuine playlist URLs.
-    Watches with a list= param are single videos in a playlist context —
-    we treat them as single downloads unless the user wants the full list.
-    """
     return "/playlist?" in url or url.startswith("https://www.youtube.com/playlist")
 
 
@@ -152,25 +158,35 @@ class GracefulExit(Exception):
     pass
 
 
+def check_dependencies() -> None:
+    try:
+        subprocess.run(["ffmpeg", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print("Error: ffmpeg dependency not found on PATH. Please install ffmpeg.")
+        sys.exit(1)
+
+
+def parse_version_tuple(v_str: str) -> Tuple[int, ...]:
+    try:
+        return tuple(int(x) for x in re.sub(r'[^0-9.]', '', v_str).split('.') if x)
+    except ValueError:
+        return (0,)
+
+
 def check_for_update(console: Console) -> None:
     try:
         with console.status("[dim]Checking yt-dlp version...[/dim]", spinner="dots"):
             resp = requests.get("https://pypi.org/pypi/yt-dlp/json", timeout=5)
             resp.raise_for_status()
             latest = resp.json()["info"]["version"]
-            proc = subprocess.run(["yt-dlp", "--version"], capture_output=True, text=True)
+            proc = subprocess.run(["yt-dlp", "--version"], capture_output=True, text=True, check=True)
             current = proc.stdout.strip()
 
-        if current != latest:
-            console.print(
-                f"\n[yellow]yt-dlp update available:[/yellow] {current} → {latest}"
-            )
+        if parse_version_tuple(current) < parse_version_tuple(latest):
+            console.print(f"\n[yellow]yt-dlp update available:[/yellow] {current} -> {latest}")
             if Confirm.ask("Update now?", default=True):
-                console.print("[blue]Updating yt-dlp…[/blue]")
-                subprocess.run(
-                    [sys.executable, "-m", "pip", "install", "-U", "yt-dlp"],
-                    check=True,
-                )
+                console.print("[blue]Updating yt-dlp...[/blue]")
+                subprocess.run([sys.executable, "-m", "pip", "install", "-U", "yt-dlp"], check=True)
                 console.print("[green]Updated. Please restart the program.[/green]")
                 raise GracefulExit
     except GracefulExit:
@@ -180,10 +196,6 @@ def check_for_update(console: Console) -> None:
 
 
 def _best_thumbnail_url(info: dict) -> Optional[str]:
-    """
-    Prefer highest-resolution thumbnail. yt-dlp lists them smallest-first
-    by convention, so we walk in reverse and return the first with a URL.
-    """
     thumbnails = info.get("thumbnails") or []
     for t in reversed(thumbnails):
         url = t.get("url")
@@ -205,11 +217,31 @@ def download_thumbnail(url: str) -> Optional[str]:
         return None
 
 
+def verify_and_convert_image(img_path: str) -> Optional[str]:
+    try:
+        with Image.open(img_path) as img:
+            out_path = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg").name
+            img.convert("RGB").save(out_path, "JPEG")
+            try:
+                os.remove(img_path)
+            except OSError:
+                pass
+            return out_path
+    except Exception as exc:
+        log.warning("Image verification failed: %s", exc)
+        return None
+
+
 def embed_cover(path: str, img_path: str, fmt: str) -> None:
     if not (img_path and os.path.exists(img_path)):
         return
+    
+    verified_img = verify_and_convert_image(img_path)
+    if not verified_img:
+        return
+
     try:
-        with open(img_path, "rb") as f:
+        with open(verified_img, "rb") as f:
             img_data = f.read()
 
         if fmt == "mp3":
@@ -237,24 +269,16 @@ def embed_cover(path: str, img_path: str, fmt: str) -> None:
         log.warning("Cover embed failed for %s: %s", path, exc)
     finally:
         try:
-            os.remove(img_path)
+            os.remove(verified_img)
         except OSError:
             pass
 
 
 def write_tags(path: str, info: dict, fmt: str, track_num: Optional[int], track_total: Optional[int], album: Optional[str]) -> None:
     title = info.get("title", "").strip()
-    artist = (
-        info.get("artist")
-        or info.get("uploader")
-        or info.get("channel")
-        or ""
-    )
+    artist = info.get("artist") or info.get("uploader") or info.get("channel") or ""
     album_name = album or info.get("album") or info.get("playlist_title") or ""
-    year = (
-        str(info.get("release_year", ""))
-        or (info.get("upload_date", "")[:4] if info.get("upload_date") else "")
-    )
+    year = str(info.get("release_year", "")) or (info.get("upload_date", "")[:4] if info.get("upload_date") else "")
     genre = info.get("genre") or "Music"
 
     try:
@@ -266,9 +290,7 @@ def write_tags(path: str, info: dict, fmt: str, track_num: Optional[int], track_
             if year:       audio["date"] = year
             if genre:      audio["genre"] = genre
             if track_num:
-                audio["tracknumber"] = (
-                    f"{track_num}/{track_total}" if track_total else str(track_num)
-                )
+                audio["tracknumber"] = f"{track_num}/{track_total}" if track_total else str(track_num)
             audio.save()
 
         elif fmt == "flac":
@@ -302,23 +324,23 @@ def write_tags(path: str, info: dict, fmt: str, track_num: Optional[int], track_
 def save_description(audio_path: str, description: str) -> None:
     if not description:
         return
-    txt_path = os.path.splitext(audio_path)[0] + ".txt"
+    txt_path = Path(audio_path).with_suffix(".txt")
     try:
-        with open(txt_path, "w", encoding="utf-8") as f:
-            f.write(description)
+        txt_path.write_text(description, encoding="utf-8")
     except OSError as exc:
         log.warning("Could not save description: %s", exc)
 
 
 def build_audio_opts(fmt: str, folder: str, playlist_mode: bool, album: Optional[str]) -> dict:
     uploader_part = "%(uploader)s"
+    folder_path = Path(folder)
 
     if playlist_mode and album:
-        outtmpl = os.path.join(folder, uploader_part, sanitize(album), "%(playlist_index)02d - %(title)s.%(ext)s")
+        outtmpl = str(folder_path / uploader_part / sanitize(album) / "%(playlist_index)02d - %(title)s.%(ext)s")
     elif playlist_mode:
-        outtmpl = os.path.join(folder, uploader_part, "%(playlist_index)02d - %(title)s.%(ext)s")
+        outtmpl = str(folder_path / uploader_part / "%(playlist_index)02d - %(title)s.%(ext)s")
     else:
-        outtmpl = os.path.join(folder, uploader_part, "%(title)s.%(ext)s")
+        outtmpl = str(folder_path / uploader_part / "%(title)s.%(ext)s")
 
     codec_map = {"mp3": "mp3", "m4a": "m4a", "flac": "flac"}
     fmt_selector = {
@@ -331,10 +353,17 @@ def build_audio_opts(fmt: str, folder: str, playlist_mode: bool, album: Optional
         "format": fmt_selector[fmt],
         "extractaudio": True,
         "audioformat": codec_map[fmt],
-        "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": codec_map[fmt]}],
+        "postprocessors": [{
+            "key": "FFmpegExtractAudio", 
+            "preferredcodec": codec_map[fmt],
+            "preferredquality": "320"
+        }],
         "outtmpl": outtmpl,
         "quiet": True,
         "no_warnings": True,
+        "ignorewarnings": True,
+        "logger": SilentYTDLPLogger(),
+        "dynamic_mpd": False,
         "retries": 5,
         "fragment_retries": 5,
     }
@@ -342,7 +371,7 @@ def build_audio_opts(fmt: str, folder: str, playlist_mode: bool, album: Optional
 
 def build_video_opts(resolution: str, folder: str) -> dict:
     uploader_part = "%(uploader)s"
-    outtmpl = os.path.join(folder, uploader_part, "%(title)s.%(ext)s")
+    outtmpl = str(Path(folder) / uploader_part / "%(title)s.%(ext)s")
 
     if resolution == "best":
         fmt = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
@@ -359,6 +388,9 @@ def build_video_opts(resolution: str, folder: str) -> dict:
         "outtmpl": outtmpl,
         "quiet": True,
         "no_warnings": True,
+        "ignorewarnings": True,
+        "logger": SilentYTDLPLogger(),
+        "dynamic_mpd": False,
         "retries": 10,
         "fragment_retries": 10,
         "skip_unavailable_fragments": True,
@@ -366,12 +398,11 @@ def build_video_opts(resolution: str, folder: str) -> dict:
     }
 
 
-def fetch_playlist_info(url: str, console: Console) -> tuple[str, list[dict]]:
-    """Returns (playlist_title, list of entry dicts)."""
+def fetch_playlist_info(url: str, console: Console) -> Tuple[str, List[dict]]:
     from yt_dlp import YoutubeDL
 
-    with console.status("[dim]Fetching playlist…[/dim]", spinner="dots"):
-        with YoutubeDL({"quiet": True, "extract_flat": True}) as ydl:
+    with console.status("[dim]Fetching playlist...[/dim]", spinner="dots"):
+        with YoutubeDL({"quiet": True, "extract_flat": True, "logger": SilentYTDLPLogger(), "ignorewarnings": True}) as ydl:
             info = ydl.extract_info(url, download=False)
 
     playlist_title = info.get("title") or ""
@@ -386,8 +417,8 @@ def fetch_playlist_info(url: str, console: Console) -> tuple[str, list[dict]]:
     return playlist_title, entries
 
 
-def parse_track_selection(selection: str, total: int) -> list[int]:
-    indices: set[int] = set()
+def parse_track_selection(selection: str, total: int) -> List[int]:
+    indices: Set[int] = set()
     for part in selection.split(","):
         part = part.strip()
         if "-" in part:
@@ -403,7 +434,7 @@ def parse_track_selection(selection: str, total: int) -> list[int]:
 
 def fmt_duration(seconds: Optional[int]) -> str:
     if not seconds:
-        return "—"
+        return "-"
     m, s = divmod(int(seconds), 60)
     h, m = divmod(m, 60)
     if h:
@@ -411,8 +442,7 @@ def fmt_duration(seconds: Optional[int]) -> str:
     return f"{m}:{s:02d}"
 
 
-def show_queue_preview(entries: list[dict], console: Console) -> None:
-    """Show a compact preview table of what's about to be downloaded."""
+def show_queue_preview(entries: List[dict], console: Console) -> None:
     table = Table(box=box.SIMPLE, show_header=True, header_style="bold dim", pad_edge=False)
     table.add_column("#", style="dim", width=4, justify="right")
     table.add_column("Title", style="cyan", max_width=55, overflow="ellipsis")
@@ -425,7 +455,6 @@ def show_queue_preview(entries: list[dict], console: Console) -> None:
 
 
 def _resolve_final_path(ydl, info: dict, opts: dict) -> Optional[str]:
-    """Best-effort resolution of the actual output file path."""
     requested = info.get("requested_downloads")
     if requested:
         path = requested[0].get("filepath")
@@ -447,19 +476,35 @@ def download_single(
     track_num: Optional[int],
     track_total: Optional[int],
     album: Optional[str],
-    console: Console,
+    progress: Progress,
+    task_id: any
 ) -> DownloadResult:
     from yt_dlp import YoutubeDL
 
     result = DownloadResult(url=url, file_path=url, file_type="Video", status="failed")
 
+    def hook(d: dict) -> None:
+        if d["status"] == "downloading":
+            downloaded = d.get("downloaded_bytes", 0)
+            total = d.get("total_bytes") or d.get("total_bytes_estimate", 0)
+            if total > 0:
+                progress.update(task_id, completed=downloaded, total=total, description=f"[cyan]Downloading:[/] {info_title[:30]}...")
+            else:
+                progress.update(task_id, completed=downloaded, description=f"[cyan]Downloading:[/] {info_title[:30]}...")
+        elif d["status"] == "finished":
+            progress.update(task_id, description="[cyan]Processing conversion...[/]")
+
+    opts["progress_hooks"] = [hook]
+    info_title = url
+
     try:
         with YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=True)
 
+        info_title = info.get("title", url)
         final_path = _resolve_final_path(ydl, info, opts)
         if not final_path:
-            result.status = "failed — output file not found"
+            result.status = "failed - output file not found"
             return result
 
         result.file_path = final_path
@@ -468,35 +513,30 @@ def download_single(
         if mode == "audio":
             result.file_type = "Audio"
 
+            progress.update(task_id, description="[cyan]Embedding cover art...[/]")
             tn_url = _best_thumbnail_url(info)
             if tn_url:
                 img = download_thumbnail(tn_url)
                 if img:
                     embed_cover(final_path, img, fmt)
-                    console.print("    [green]✓[/green] Cover art embedded")
-                else:
-                    console.print("    [yellow]⚠[/yellow] Cover art unavailable")
-            else:
-                console.print("    [yellow]⚠[/yellow] No thumbnail found")
 
+            progress.update(task_id, description="[cyan]Writing tags...[/]")
             write_tags(final_path, info, fmt, track_num, track_total, album)
-            console.print("    [green]✓[/green] Metadata written")
 
             if info.get("description"):
                 save_description(final_path, info["description"])
-                console.print("    [green]✓[/green] Description saved")
 
         result.status = "success"
 
     except Exception as exc:
-        result.status = f"failed — {str(exc)[:80]}"
+        result.status = f"failed - {str(exc)[:80]}"
         log.error("Download failed for %s: %s", url, exc)
 
     return result
 
 
 def download_all(
-    urls: list[str],
+    urls: List[str],
     opts: dict,
     mode: str,
     fmt: str,
@@ -504,12 +544,8 @@ def download_all(
     album: Optional[str],
     console: Console,
     max_workers: int = 3,
-) -> list[DownloadResult]:
-    """
-    Downloads all URLs. Playlist audio uses parallel workers;
-    video downloads are sequential to avoid disk contention.
-    """
-    results: list[DownloadResult] = []
+) -> List[DownloadResult]:
+    results: List[DownloadResult] = []
     total = len(urls)
     workers = max_workers if (mode == "audio" and total > 1) else 1
 
@@ -520,16 +556,16 @@ def download_all(
         TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
         FileSizeColumn(),
         TransferSpeedColumn(),
-        TextColumn("•"),
+        TextColumn("-"),
         TimeRemainingColumn(),
     ]
 
-    with Progress(*progress_cols, console=console, transient=False) as progress:
-        overall = progress.add_task(
-            f"[cyan]{'🎵' if mode == 'audio' else '🎬'} {total} item(s)", total=total
-        )
+    progress = Progress(*progress_cols, console=console, transient=False)
+    
+    with Live(progress, console=console, refresh_per_second=10):
+        overall = progress.add_task(f"Batch processing {total} item(s)", total=total, completed=0, start=True)
 
-        def run(index_url: tuple[int, str]) -> DownloadResult:
+        def run(index_url: Tuple[int, str]) -> DownloadResult:
             idx, url = index_url
             track_opts = dict(opts)
             if mode == "audio" and total > 1:
@@ -543,9 +579,9 @@ def download_all(
                 track_num=idx,
                 track_total=track_total,
                 album=album,
-                console=console,
+                progress=progress,
+                task_id=overall
             )
-            progress.advance(overall)
             return res
 
         with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -556,12 +592,12 @@ def download_all(
                 except Exception as exc:
                     url = futures[future]
                     log.error("Unexpected error for %s: %s", url, exc)
-                    results.append(DownloadResult(url=url, file_path=url, file_type="?", status=f"failed — {exc}"))
+                    results.append(DownloadResult(url=url, file_path=url, file_type="?", status=f"failed - {exc}"))
 
     return results
 
 
-def show_summary(results: list[DownloadResult], console: Console) -> None:
+def show_summary(results: List[DownloadResult], console: Console) -> None:
     table = Table(
         title="Download Summary",
         box=box.ROUNDED,
@@ -588,9 +624,7 @@ def show_summary(results: list[DownloadResult], console: Console) -> None:
 
     console.print()
     console.print(table)
-    console.print(
-        f"\n[green]✓[/green] {success}/{len(results)} downloaded successfully"
-    )
+    console.print(f"\n[green]✓[/green] {success}/{len(results)} downloaded successfully")
 
 
 def print_header(console: Console) -> None:
@@ -599,7 +633,7 @@ def print_header(console: Console) -> None:
     console.print(
         Panel(
             title,
-            subtitle="audio · video · playlists · metadata",
+            subtitle="audio - video - playlists - metadata",
             style="cyan",
             box=box.HEAVY,
             padding=(0, 2),
@@ -608,7 +642,7 @@ def print_header(console: Console) -> None:
     console.print()
 
 
-def pick_url(config: Config, console: Console) -> list[str]:
+def pick_url(config: Config, console: Console) -> List[str]:
     clipboard = get_clipboard_url()
     if clipboard:
         console.print(Panel(
@@ -620,9 +654,9 @@ def pick_url(config: Config, console: Console) -> list[str]:
             return [clipboard]
 
     console.print("[bold]Enter a YouTube URL[/bold]")
-    console.print("  • Paste a URL directly")
-    console.print("  • Type [cyan]file[/cyan] to load from a text file")
-    console.print("  • Type [cyan]q[/cyan] to quit\n")
+    console.print("  - Paste a URL directly")
+    console.print("  - Type [cyan]file[/cyan] to load from a text file")
+    console.print("  - Type [cyan]q[/cyan] to quit\n")
 
     url_input = Prompt.ask("URL").strip()
 
@@ -649,8 +683,8 @@ def pick_mode(console: Console) -> str:
     table = Table(box=box.SIMPLE, show_header=False, pad_edge=False)
     table.add_column(width=8)
     table.add_column()
-    table.add_row("[cyan]audio[/cyan]", "MP3 / FLAC / M4A — with metadata and cover art")
-    table.add_row("[cyan]video[/cyan]", "MP4 — best quality, merged audio+video")
+    table.add_row("[cyan]audio[/cyan]", "MP3 / FLAC / M4A - with metadata and cover art")
+    table.add_row("[cyan]video[/cyan]", "MP4 - best quality, merged audio+video")
     console.print(table)
     return Prompt.ask("\nChoose", choices=["audio", "video"], default="audio")
 
@@ -661,7 +695,7 @@ def pick_audio_format(console: Console) -> str:
     table.add_column(width=6)
     table.add_column(width=14)
     table.add_column(style="dim")
-    table.add_row("[cyan]mp3[/cyan]",  "Lossy",    "Universal compatibility, smaller files")
+    table.add_row("[cyan]mp3[/cyan]",  "Lossy",    "Universal compatibility, 320kbps CBR")
     table.add_row("[cyan]m4a[/cyan]",  "Lossy",    "Better quality than MP3 at same bitrate")
     table.add_row("[cyan]flac[/cyan]", "Lossless", "Best quality, large files")
     console.print(table)
@@ -682,16 +716,14 @@ def pick_resolution(console: Console) -> str:
 def pick_folder(config: Config, console: Console) -> str:
     console.print(f"\n[bold]Output folder[/bold]  [dim](last: {config.last_output_folder})[/dim]")
     folder = Prompt.ask("Folder", default=config.last_output_folder).strip()
-    if not os.path.exists(folder):
-        os.makedirs(folder)
+    folder_path = Path(folder)
+    if not folder_path.exists():
+        folder_path.mkdir(parents=True, exist_ok=True)
         console.print(f"[dim]Created: {folder}[/dim]")
     return folder
 
 
 def run_session(console: Console, config: Config) -> bool:
-    """
-    Runs one full download session. Returns True if the user wants another session.
-    """
     try:
         urls = pick_url(config, console)
     except KeyboardInterrupt:
@@ -727,8 +759,7 @@ def run_session(console: Console, config: Config) -> bool:
 
     playlist_mode = is_playlist_url(url)
     album: Optional[str] = None
-    download_urls: list[str] = []
-    preview_entries: list[dict] = []
+    download_urls: List[str] = []
 
     if playlist_mode:
         console.print()
@@ -739,18 +770,12 @@ def run_session(console: Console, config: Config) -> bool:
             return False
 
         album = playlist_title or None
-        console.print(
-            f"[bold]Playlist:[/bold] [cyan]{playlist_title or 'Untitled'}[/cyan] "
-            f"— [green]{len(entries)}[/green] tracks\n"
-        )
+        console.print(f"[bold]Playlist:[/bold] [cyan]{playlist_title or 'Untitled'}[/cyan] - [green]{len(entries)}[/green] tracks\n")
 
         show_queue_preview(entries, console)
 
         try:
-            sel = Prompt.ask(
-                "\nTracks to download (e.g. 1-3,5) or [cyan]Enter[/cyan] for all",
-                default=""
-            ).strip()
+            sel = Prompt.ask("\nTracks to download (e.g. 1-3,5) or [cyan]Enter[/cyan] for all", default="").strip()
         except KeyboardInterrupt:
             return False
 
@@ -762,38 +787,32 @@ def run_session(console: Console, config: Config) -> bool:
             console.print(f"All [green]{len(entries)}[/green] tracks selected.")
 
         download_urls = [f"https://www.youtube.com/watch?v={e['id']}" for e in entries]
-        preview_entries = entries
 
     else:
         download_urls = urls
         console.print()
         try:
-            with console.status("[dim]Fetching info…[/dim]", spinner="dots"):
+            with console.status("[dim]Fetching info...[/dim]", spinner="dots"):
                 from yt_dlp import YoutubeDL
-                peek_opts = {"quiet": True, "extract_flat": False, "skip_download": True}
+                peek_opts = {"quiet": True, "extract_flat": False, "skip_download": True, "logger": SilentYTDLPLogger(), "ignorewarnings": True}
                 with YoutubeDL(peek_opts) as ydl:
                     info = ydl.extract_info(url, download=False)
 
             table = Table(box=box.SIMPLE, show_header=False, pad_edge=False)
             table.add_column(style="dim", width=10)
             table.add_column()
-            table.add_row("Title",    info.get("title") or "—")
-            table.add_row("Channel",  info.get("uploader") or "—")
+            table.add_row("Title",    info.get("title") or "-")
+            table.add_row("Channel",  info.get("uploader") or "-")
             table.add_row("Duration", fmt_duration(info.get("duration")))
             console.print(table)
-            preview_entries = [{"index": 1, "title": info.get("title", url), "duration": info.get("duration")}]
 
         except Exception as exc:
             log.warning("Preview fetch failed: %s", exc)
             console.print(f"[dim](Could not fetch preview: {exc})[/dim]")
-            preview_entries = [{"index": 1, "title": url, "duration": None}]
 
     console.print()
     try:
-        if not Confirm.ask(
-            f"Start download? ({len(download_urls)} item(s))",
-            default=True,
-        ):
+        if not Confirm.ask(f"Start download? ({len(download_urls)} item(s))", default=True):
             return True
     except KeyboardInterrupt:
         return False
@@ -862,7 +881,8 @@ def main() -> None:
     console = Console()
     config = Config.load()
 
-    os.makedirs(DEFAULT_FOLDER, exist_ok=True)
+    check_dependencies()
+    Path(DEFAULT_FOLDER).mkdir(exist_ok=True)
 
     print_header(console)
 
