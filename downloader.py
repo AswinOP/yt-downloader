@@ -363,6 +363,7 @@ def build_audio_opts(fmt: str, folder: str, playlist_mode: bool, album: Optional
         "no_warnings": True,
         "ignorewarnings": True,
         "logger": SilentYTDLPLogger(),
+        "noplaylist": True,
         "retries": 5,
         "fragment_retries": 5,
     }
@@ -389,6 +390,7 @@ def build_video_opts(resolution: str, folder: str) -> dict:
         "no_warnings": True,
         "ignorewarnings": True,
         "logger": SilentYTDLPLogger(),
+        "noplaylist": True,
         "retries": 10,
         "fragment_retries": 10,
         "skip_unavailable_fragments": True,
@@ -792,7 +794,7 @@ def run_session(console: Console, config: Config) -> bool:
         try:
             with console.status("[dim]Fetching info...[/dim]", spinner="dots"):
                 from yt_dlp import YoutubeDL
-                peek_opts = {"quiet": True, "extract_flat": False, "skip_download": True, "logger": SilentYTDLPLogger(), "ignorewarnings": True}
+                peek_opts = {"quiet": True, "extract_flat": False, "skip_download": True, "logger": SilentYTDLPLogger(), "ignorewarnings": True, "noplaylist": True}
                 with YoutubeDL(peek_opts) as ydl:
                     info = ydl.extract_info(url, download=False)
 
