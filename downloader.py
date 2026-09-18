@@ -165,6 +165,21 @@ def check_dependencies() -> None:
         print("Error: ffmpeg dependency not found on PATH. Please install ffmpeg.")
         sys.exit(1)
 
+JS_RUNTIMES = ("deno", "node", "bun")
+
+
+def check_js_runtime(console: Console) -> None:
+    for runtime in JS_RUNTIMES:
+        try:
+            subprocess.run([runtime, "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            return
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            continue
+    console.print(
+        "[yellow]Warning:[/yellow] no JavaScript runtime (deno, node, or bun) found on PATH.\n"
+        "YouTube downloads may be throttled or missing some resolutions.\n"
+        "See https://github.com/yt-dlp/yt-dlp/wiki/EJS for setup instructions.\n"
+    )
 
 def parse_version_tuple(v_str: str) -> Tuple[int, ...]:
     try:
@@ -891,6 +906,7 @@ def main() -> None:
     Path(DEFAULT_FOLDER).mkdir(exist_ok=True)
 
     print_header(console)
+    check_js_runtime(console)
 
     try:
         check_for_update(console)

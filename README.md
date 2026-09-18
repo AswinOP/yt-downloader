@@ -42,7 +42,23 @@ brew install ffmpeg
 sudo apt update && sudo apt install ffmpeg
 ```
 
-### 3. Install the script and dependencies
+### 3. Install a JavaScript runtime
+
+YouTube extraction requires a JS runtime for full format support. [Deno](https://docs.deno.com/runtime/getting_started/installation/) is recommended:
+
+**macOS / Linux:**
+```bash
+curl -fsSL https://deno.land/install.sh | sh
+```
+
+**Windows (PowerShell):**
+```powershell
+irm https://deno.land/install.ps1 | iex
+```
+
+Node.js or Bun also work if already installed. Verify with `deno --version`.
+
+### 4. Install the script and dependencies
 
 ```bash
 git clone https://github.com/aswinop/yt-downloader.git
@@ -133,6 +149,7 @@ Python 3.10 or later is required (uses structural pattern features and modern ty
 | Package     | Purpose                        |
 |-------------|--------------------------------|
 | yt-dlp      | YouTube download backend       |
+| yt-dlp-ejs  | YouTube signature/format solving (requires a JS runtime — see Installation) |
 | rich        | Terminal UI                    |
 | requests    | Thumbnail fetching, update check |
 | mutagen     | Audio tag writing              |
