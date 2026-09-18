@@ -561,7 +561,7 @@ def download_all(
     ]
 
     progress = Progress(*progress_cols, console=console, transient=False)
-    
+
     with Live(progress, console=console, refresh_per_second=10):
         overall = progress.add_task(f"Batch processing {total} item(s)", total=total, completed=0, start=True)
 
@@ -570,6 +570,8 @@ def download_all(
             track_opts = dict(opts)
             if mode == "audio" and total > 1:
                 track_opts["playlist_items"] = str(idx)
+
+            item_task = progress.add_task(f"[cyan]Queued:[/] item {idx}", total=None, start=True)
 
             res = download_single(
                 url=url,
@@ -580,8 +582,11 @@ def download_all(
                 track_total=track_total,
                 album=album,
                 progress=progress,
-                task_id=overall
+                task_id=item_task
             )
+
+            progress.remove_task(item_task)
+            progress.update(overall, advance=1)
             return res
 
         with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -593,6 +598,7 @@ def download_all(
                     url = futures[future]
                     log.error("Unexpected error for %s: %s", url, exc)
                     results.append(DownloadResult(url=url, file_path=url, file_type="?", status=f"failed - {exc}"))
+                    progress.update(overall, advance=1)
 
     return results
 
