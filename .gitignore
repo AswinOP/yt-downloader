@@ -1,0 +1,11 @@
+# Runtime artifacts
+yt_downloader_config.json
+yt_downloader.log
+Downloads/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/

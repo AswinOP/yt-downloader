@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from logging.handlers import RotatingFileHandler
 import re
 import subprocess
 import sys
@@ -47,12 +48,11 @@ RESOLUTION_LABELS = {
 YT_URL_PATTERN = re.compile(r'https?://(www\.)?(youtube\.com|youtu\.be|music\.youtube\.com)/')
 UNSAFE_CHARS = re.compile(r'[\/\\\:\*\?"<>\|]')
 
-logging.basicConfig(
-    filename="yt_downloader.log",
-    level=logging.WARNING,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-)
 log = logging.getLogger(__name__)
+log.setLevel(logging.WARNING)
+_handler = RotatingFileHandler("yt_downloader.log", maxBytes=1_000_000, backupCount=3, encoding="utf-8")
+_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+log.addHandler(_handler)
 
 class SilentYTDLPLogger:
     def debug(self, msg):
