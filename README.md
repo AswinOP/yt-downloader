@@ -19,7 +19,7 @@ A clean, deliberate Python tool to download **audio (MP3, FLAC, M4A)** and **vid
 
 ## Installation
 
-### 1. Install Python 3.10+
+### 1. Install Python 3.9+
 
 [Download Python](https://www.python.org/downloads/)
 
@@ -142,7 +142,7 @@ Check `yt_downloader.log` for details. Common causes: region restrictions, netwo
 The tool checks for updates on startup and offers to install them automatically.
 
 **Python version**
-Python 3.10 or later is required (uses structural pattern features and modern type hints).
+Python 3.9 or later is required — this is yt-dlp's own minimum supported version, not a requirement of this script's code.
 
 ## Dependencies
 
