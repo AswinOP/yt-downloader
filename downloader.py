@@ -8,7 +8,7 @@ import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import Optional, List, Dict, Tuple, Set
+from typing import Optional, List, Dict, Tuple, Set, Any
 
 import requests
 import pyperclip
@@ -366,10 +366,8 @@ def build_audio_opts(fmt: str, folder: str, playlist_mode: bool, album: Optional
 
     return {
         "format": fmt_selector[fmt],
-        "extractaudio": True,
-        "audioformat": codec_map[fmt],
         "postprocessors": [{
-            "key": "FFmpegExtractAudio", 
+            "key": "FFmpegExtractAudio",
             "preferredcodec": codec_map[fmt],
             "preferredquality": "320"
         }],
@@ -492,7 +490,7 @@ def download_single(
     track_total: Optional[int],
     album: Optional[str],
     progress: Progress,
-    task_id: any
+    task_id: Any
 ) -> DownloadResult:
     from yt_dlp import YoutubeDL
 
