@@ -363,7 +363,6 @@ def build_audio_opts(fmt: str, folder: str, playlist_mode: bool, album: Optional
         "no_warnings": True,
         "ignorewarnings": True,
         "logger": SilentYTDLPLogger(),
-        "dynamic_mpd": False,
         "retries": 5,
         "fragment_retries": 5,
     }
@@ -390,7 +389,6 @@ def build_video_opts(resolution: str, folder: str) -> dict:
         "no_warnings": True,
         "ignorewarnings": True,
         "logger": SilentYTDLPLogger(),
-        "dynamic_mpd": False,
         "retries": 10,
         "fragment_retries": 10,
         "skip_unavailable_fragments": True,
