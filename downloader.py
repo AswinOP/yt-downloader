@@ -394,7 +394,7 @@ def build_video_opts(resolution: str, folder: str) -> dict:
         "retries": 10,
         "fragment_retries": 10,
         "skip_unavailable_fragments": True,
-        "continue_dl": True,
+        "continuedl": True,
     }
 
 
